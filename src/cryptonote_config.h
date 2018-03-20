@@ -139,6 +139,8 @@
 
 #define DEFAULT_TXPOOL_MAX_SIZE                 648000000ull // 3 days at 300000, in bytes
 
+#define NOFAKE_TXS_TO_TOTAL_TXS_RATIO           10
+
 // New constants are intended to go here
 namespace config
 {
