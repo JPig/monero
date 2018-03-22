@@ -45,7 +45,7 @@ set(wallet_sources
   api/unsigned_transaction.cpp)
   
 set(wallet_api_headers
-    wallet2_api.h)
+    api/wallet2_api.h)
 
 set(wallet_private_headers
   wallet2.h
