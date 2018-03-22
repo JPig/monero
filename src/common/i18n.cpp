@@ -1,21 +1,21 @@
-// Copyright (c) 2014-2018, The Monero Project
-// 
+// Copyright (c) 2014-2017, The Monero Project
+//
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
-// 
+//
 // 1. Redistributions of source code must retain the above copyright notice, this list of
 //    conditions and the following disclaimer.
-// 
+//
 // 2. Redistributions in binary form must reproduce the above copyright notice, this list
 //    of conditions and the following disclaimer in the documentation and/or other
 //    materials provided with the distribution.
-// 
+//
 // 3. Neither the name of the copyright holder nor the names of its contributors may be
 //    used to endorse or promote products derived from this software without specific
 //    prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
 // EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
 // MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
@@ -35,7 +35,6 @@
 #include "file_io_utils.h"
 #include "common/util.h"
 #include "common/i18n.h"
-#include "translation_files.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "i18n"
@@ -63,7 +62,6 @@ std::string i18n_get_language()
     e = "en";
 
   std::string language = e;
-  language = language.substr(0, language.find("."));
   std::transform(language.begin(), language.end(), language.begin(), tolower);
   return language;
 }
@@ -139,38 +137,23 @@ int i18n_set_language(const char *directory, const char *base, std::string langu
   i18n_log("Loading translations for language " << language);
 
   boost::system::error_code ignored_ec;
-  if (boost::filesystem::exists(filename, ignored_ec)) {
-    if (!epee::file_io_utils::load_file_to_string(filename, contents)) {
-      i18n_log("Failed to load translations file: " << filename);
-      return -1;
-    }
-  } else {
+  if (!boost::filesystem::exists(filename, ignored_ec)) {
     i18n_log("Translations file not found: " << filename);
-    filename = std::string(base) + "_" + language + ".qm";
-    if (!find_embedded_file(filename, contents)) {
-      i18n_log("Embedded translations file not found: " << filename);
-      const char *underscore = strchr(language.c_str(), '_');
-      if (underscore) {
-        std::string fallback_language = std::string(language, 0, underscore - language.c_str());
-        filename = std::string(directory) + "/" + base + "_" + fallback_language + ".qm";
-        i18n_log("Loading translations for language " << fallback_language);
-        if (boost::filesystem::exists(filename, ignored_ec)) {
-          if (!epee::file_io_utils::load_file_to_string(filename, contents)) {
-            i18n_log("Failed to load translations file: " << filename);
-            return -1;
-          }
-        } else {
-          i18n_log("Translations file not found: " << filename);
-          filename = std::string(base) + "_" + fallback_language + ".qm";
-          if (!find_embedded_file(filename, contents)) {
-            i18n_log("Embedded translations file not found: " << filename);
-            return -1;
-          }
-        }
-      } else {
+    const char *underscore = strchr(language.c_str(), '_');
+    if (underscore) {
+      std::string fallback_language = std::string(language, 0, underscore - language.c_str());
+      filename = std::string(directory) + "/" + base + "_" + fallback_language + ".qm";
+      i18n_log("Not found, loading translations for language " << fallback_language);
+      if (!boost::filesystem::exists(filename, ignored_ec)) {
+        i18n_log("Translations file not found: " << filename);
         return -1;
       }
     }
+  }
+
+  if (!epee::file_io_utils::load_file_to_string(filename, contents)) {
+    i18n_log("Failed to load translations file: " << filename);
+    return -1;
   }
 
   data = (const unsigned char*)contents.c_str();
@@ -314,5 +297,3 @@ const char *i18n_translate(const char *s, const std::string &context)
     return s;
   return (*i).second.c_str();
 }
-
-
