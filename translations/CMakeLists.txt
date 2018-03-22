@@ -28,7 +28,7 @@
 
 cmake_minimum_required(VERSION 2.8.7)
 
-project(translations)
+#project(translations)
 
 add_executable(generate_translations_header generate_translations_header.c)
 
