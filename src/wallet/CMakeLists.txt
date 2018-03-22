@@ -34,7 +34,18 @@ set(wallet_sources
   wallet2.cpp
   wallet_args.cpp
   ringdb.cpp
-  node_rpc_proxy.cpp)
+  node_rpc_proxy.cpp
+  api/wallet.cpp
+  api/wallet_manager.cpp
+  api/transaction_info.cpp
+  api/transaction_history.cpp
+  api/pending_transaction.cpp
+  api/utils.cpp
+  api/address_book.cpp
+  api/unsigned_transaction.cpp)
+  
+set(wallet_api_headers
+    wallet2_api.h)
 
 set(wallet_private_headers
   wallet2.h
@@ -44,12 +55,21 @@ set(wallet_private_headers
   wallet_rpc_server_commands_defs.h
   wallet_rpc_server_error_codes.h
   ringdb.h
-  node_rpc_proxy.h)
+  node_rpc_proxy.h
+  api/wallet.h
+  api/wallet_manager.h
+  api/transaction_info.h
+  api/transaction_history.h
+  api/pending_transaction.h
+  api/common_defines.h
+  api/address_book.h
+  api/unsigned_transaction.h)
 
 monero_private_headers(wallet
   ${wallet_private_headers})
 monero_add_library(wallet
   ${wallet_sources}
+  ${wallet_api_headers}
   ${wallet_private_headers})
 target_link_libraries(wallet
   PUBLIC
@@ -66,6 +86,8 @@ target_link_libraries(wallet
     ${Boost_REGEX_LIBRARY}
   PRIVATE
     ${EXTRA_LIBRARIES})
+    
+add_dependencies(wallet version)
 
 set(wallet_rpc_sources
   wallet_rpc_server.cpp)
