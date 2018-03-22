@@ -1,3 +1,5 @@
+
+/*
 // Copyright (c) 2014-2018, The Monero Project
 //
 // All rights reserved.
@@ -425,3 +427,5 @@ int main(int argc, char* argv[])
 
   CATCH_ENTRY("Export error", 1);
 }
+
+*/
