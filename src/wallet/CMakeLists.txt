@@ -42,8 +42,10 @@ set(wallet_sources
   api/pending_transaction.cpp
   api/utils.cpp
   api/address_book.cpp
+  api/subaddress.cpp
+  api/subaddress_account.cpp
   api/unsigned_transaction.cpp)
-  
+
 set(wallet_api_headers
     api/wallet2_api.h)
 
@@ -63,6 +65,8 @@ set(wallet_private_headers
   api/pending_transaction.h
   api/common_defines.h
   api/address_book.h
+  api/subaddress.h
+  api/subaddress_account.h
   api/unsigned_transaction.h)
 
 monero_private_headers(wallet
@@ -86,7 +90,7 @@ target_link_libraries(wallet
     ${Boost_REGEX_LIBRARY}
   PRIVATE
     ${EXTRA_LIBRARIES})
-    
+
 add_dependencies(wallet version)
 
 set(wallet_rpc_sources

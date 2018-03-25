@@ -348,8 +348,9 @@ WalletImpl::WalletImpl(NetworkType nettype)
     m_refreshThreadDone = false;
     m_refreshEnabled = false;
     m_addressBook = new AddressBookImpl(this);
-    m_subaddress = new SubaddressImpl(this);
-    m_subaddressAccount = new SubaddressAccountImpl(this);
+
+    //m_subaddress = new SubaddressImpl(this);
+    //m_subaddressAccount = new SubaddressAccountImpl(this);
 
 
     m_refreshIntervalMillis = DEFAULT_REFRESH_INTERVAL_MILLIS;
