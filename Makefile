@@ -82,7 +82,7 @@ release-static-linux-armv7:
 
 release-static-android:
 	mkdir -p build/release
-	cd build/release && cmake -D BUILD_TESTS=OFF -D ARCH="armv7-a" -D STATIC=ON -D BUILD_64=OFF -D CMAKE_BUILD_TYPE=release -D ANDROID=true -D INSTALL_VENDORED_LIBUNBOUND=ON -D BUILD_TAG="android" ../.. && $(MAKE)
+	cd build/release && cmake -D BUILD_TESTS=OFF -D ARCH="armv7-a" -D STATIC=ON -D BUILD_64=OFF -D CMAKE_BUILD_TYPE=release -D ANDROID=true -D INSTALL_VENDORED_LIBUNBOUND=ON -D BUILD_TAG="android" -D BUILD_GUI_DEPS=ON -D CMAKE_POSITION_INDEPENDENT_CODE:BOOL=true ../.. && $(MAKE)
 
 release-static-linux-armv8:
 	mkdir -p build/release
