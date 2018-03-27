@@ -598,10 +598,17 @@ bool WalletImpl::open(const std::string &path, const std::string &password)
             // Rebuilding wallet cache, using refresh height from .keys file
             m_rebuildWalletCache = true;
         }
-        m_wallet->set_ring_database(get_default_ringdb_path());
-        m_wallet->load(path, password);
 
+        // Set ringdb path based on platform
+        #if defined(__ANDROID__)
+        m_wallet->set_ring_database("/storage/emulated/0/");
+        #else
+        m_wallet->set_ring_database(get_default_ringdb_path());
+        #endif
+
+        m_wallet->load(path, password);
         m_password = password;
+        
     } catch (const std::exception &e) {
         LOG_ERROR("Error opening wallet: " << e.what());
         m_status = Status_Critical;
