@@ -70,11 +70,17 @@ namespace {
 
     std::string get_default_ringdb_path()
     {
+
+      #if defined(__ANDROID__)
+      return "/storage/emulated/0/.shared-ringdb";
+      #else
       boost::filesystem::path dir = tools::get_default_data_dir();
       // remove .bitmonero, replace with .shared-ringdb
       dir = dir.remove_filename();
       dir /= ".shared-ringdb";
       return dir.string();
+      #endif
+
     }
 }
 
@@ -599,13 +605,7 @@ bool WalletImpl::open(const std::string &path, const std::string &password)
             m_rebuildWalletCache = true;
         }
 
-        // Set ringdb path based on platform
-        #if defined(__ANDROID__)
-        m_wallet->set_ring_database("/storage/emulated/0/aeonwallet/.shared-ringdb");
-        #else
         m_wallet->set_ring_database(get_default_ringdb_path());
-        #endif
-
         m_wallet->load(path, password);
         m_password = password;
 
