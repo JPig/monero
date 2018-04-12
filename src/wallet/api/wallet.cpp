@@ -1130,6 +1130,13 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
             break;
         }
 
+        // Extra checks
+        if(info.address.empty() || info.amount <= 0) {
+          m_status = Status_Error;
+          m_errorString = tr("info -> address:") + info.address + tr(", amount: ") + info.amount + tr(", is subaddress: ") + info.is_subaddress;
+          break;
+        }
+
 
         std::vector<uint8_t> extra;
         // if dst_addr is not an integrated address, parse payment_id
