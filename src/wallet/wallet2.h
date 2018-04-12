@@ -1712,7 +1712,7 @@ namespace tools
   {
     using namespace cryptonote;
     // throw if attempting a transaction with no destinations
-    THROW_WALLET_EXCEPTION_IF(dsts.empty(), error::zero_destination);
+    THROW_WALLET_EXCEPTION_IF(dsts.empty(), error::zero_destination_main_transfer);
 
     THROW_WALLET_EXCEPTION_IF(m_multisig, error::wallet_internal_error, "Multisig wallets cannot spend non rct outputs");
 

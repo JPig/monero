@@ -1285,6 +1285,12 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
         } catch (const tools::error::zero_destination&) {
             m_errorString =  tr("one of destinations is zero");
             m_status = Status_Error;
+        } catch (const tools::error::zero_destination_main_transfer&) {
+            m_errorString =  tr("one of destinations is zero in main transfer");
+            m_status = Status_Error;
+        } catch (const tools::error::create_transactions_2_zero_destination&) {
+            m_errorString =  tr("one of destinations is zero in create_transactions_2");
+            m_status = Status_Error;
         } catch (const tools::error::zero_amount&) { // ADDED
             m_errorString =  tr("one of amounts is zero");
             m_status = Status_Error;

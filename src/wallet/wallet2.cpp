@@ -7408,7 +7408,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   const uint64_t fee_multiplier = get_fee_multiplier(priority, get_fee_algorithm());
 
   // throw if attempting a transaction with no destinations
-  THROW_WALLET_EXCEPTION_IF(dsts.empty(), error::zero_destination);
+  THROW_WALLET_EXCEPTION_IF(dsts.empty(), error::create_transactions_2_zero_destination);
 
   // calculate total amount being sent to all destinations
   // throw if total amount overflows uint64_t

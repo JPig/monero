@@ -693,6 +693,22 @@ namespace tools
       }
     };
 
+    struct zero_destination_main_transfer : public transfer_error
+    {
+      explicit zero_destination_main_transfer(std::string&& loc)
+        : transfer_error(std::move(loc), "destination amount is zero in main transfer")
+      {
+      }
+    };
+
+    struct create_transactions_2_zero_destination : public transfer_error
+    {
+      explicit create_transactions_2_zero_destination(std::string&& loc)
+        : transfer_error(std::move(loc), "destination amount is zero in create_transactions_2")
+      {
+      }
+    };
+
     struct zero_amount : public transfer_error
     {
       explicit zero_amount(std::string&& loc)
