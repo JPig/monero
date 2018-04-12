@@ -1131,11 +1131,11 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
         }
 
         // Extra checks
-        if(info.address.empty() || info.amount <= 0) {
-          m_status = Status_Error;
-          m_errorString = tr("info -> address:") + info.address + tr(", amount: ") + info.amount + tr(", is subaddress: ") + info.is_subaddress;
-          break;
-        }
+        // if(info.address.empty() || info.amount <= 0) {
+        //   m_status = Status_Error;
+        //   m_errorString = tr("info -> address:") + info.address + tr(", amount: ") + info.amount + tr(", is subaddress: ") + info.is_subaddress;
+        //   break;
+        // }
 
 
         std::vector<uint8_t> extra;
@@ -1179,12 +1179,31 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
 
         try {
             if (amount) {
+
                 vector<cryptonote::tx_destination_entry> dsts;
                 cryptonote::tx_destination_entry de;
                 de.addr = info.address;
                 de.amount = *amount;
                 de.is_subaddress = info.is_subaddress;
                 dsts.push_back(de);
+
+                // check if empty early
+                if(dsts.empty()) {
+                  m_status = Status_Error;
+                  m_errorString = tr("dsts is empty");
+                  break;
+                }
+
+                // check if any amounts 0
+                for(auto& dt: dsts)
+                {
+                  if(0 == dt.amount) {
+                    m_status = Status_Error;
+                    m_errorString = tr("amount of destination is 0");
+                    break;
+                  }
+                }
+
                 transaction->m_pending_tx = m_wallet->create_transactions_2(dsts, fake_outs_count, 0 /* unlock_time */,
                                                                           adjusted_priority,
                                                                           extra, subaddr_account, subaddr_indices, m_trustedDaemon);
