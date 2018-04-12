@@ -1285,6 +1285,12 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
         } catch (const tools::error::zero_destination&) {
             m_errorString =  tr("one of destinations is zero");
             m_status = Status_Error;
+        } catch (const tools::error::zero_amount&) { // ADDED
+            m_errorString =  tr("one of amounts is zero");
+            m_status = Status_Error;
+        } catch (const tools::error::zero_needed_money&) { // ADDED
+            m_errorString =  tr("needed money is zero");
+            m_status = Status_Error;
         } catch (const tools::error::tx_too_big& e) {
             m_errorString =  tr("failed to find a suitable way to split transactions");
             m_status = Status_Error;
