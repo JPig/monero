@@ -6510,7 +6510,7 @@ void wallet2::transfer_selected_rct(std::vector<cryptonote::tx_destination_entry
 {
   using namespace cryptonote;
   // throw if attempting a transaction with no destinations
-  THROW_WALLET_EXCEPTION_IF(dsts.empty(), error::zero_destination);
+  THROW_WALLET_EXCEPTION_IF(dsts.empty(), error::zero_destination_rct);
 
   uint64_t upper_transaction_size_limit = get_upper_transaction_size_limit();
   uint64_t needed_money = fee;

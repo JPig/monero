@@ -693,6 +693,14 @@ namespace tools
       }
     };
 
+    struct zero_destination_rct : public transfer_error
+    {
+      explicit zero_destination_rct(std::string&& loc)
+        : transfer_error(std::move(loc), "destination amount is zero in transfer_selected_rct")
+      {
+      }
+    };
+
     struct zero_destination_main_transfer : public transfer_error
     {
       explicit zero_destination_main_transfer(std::string&& loc)
