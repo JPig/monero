@@ -2555,17 +2555,23 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
       }
     }
 
+    // disallow ring size 2 in any case
+    if (mixin == 1)
+    {
+      MERROR_VER("Tx " << get_transaction_hash(tx) << " has ring size 2 which is disallowed");
+      tvc.m_low_mixin = true;
+      return false;
+    }
+
     if (mixin < min_mixin)
     {
-      if (n_unmixable == 0)
+      if (n_unmixable >= 1 && n_mixable <= 1)
       {
-        if (mixin == 1)
-        {
-          MERROR_VER("Tx " << get_transaction_hash(tx) << " has prohibited ring size 2, and no unmixable inputs");
-          tvc.m_low_mixin = true;
-          return false;
-        }
-        MDEBUG("Tx " << get_transaction_hash(tx) << " is non-private, and has no unmixable inputs.");
+        // we don't count this case as non-private
+      }
+      else
+      {
+        MDEBUG("Tx " << get_transaction_hash(tx) << " is non-private");
         if (nofake_txs)
         {
           MDEBUG("So far in this block we've seen " << (*nofake_txs) << " non-private txs out of " << (*total_txs) << " txs.");
@@ -2583,15 +2589,9 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
         }
         else
         {
-          // we came here from tx_memory_pool::is_transaction_ready_to_go(). since tx_memory_pool::fill_block_template() has already checked that 
+          // we came here from tx_memory_pool::is_transaction_ready_to_go(). since tx_memory_pool::fill_block_template() has already checked that
           // this non-private txs is scarce enough in the block, we can consider it as valid
         }
-      }
-      if (n_mixable > 1)
-      {
-        MERROR_VER("Tx " << get_transaction_hash(tx) << " has too low ring size (" << (mixin + 1) << "), and more than one mixable input with unmixable inputs");
-        tvc.m_low_mixin = true;
-        return false;
       }
     }
 

@@ -696,15 +696,15 @@ struct Wallet
     virtual SubaddressAccount * subaddressAccount() = 0;
     virtual void setListener(WalletListener *) = 0;
     /*!
-     * \brief defaultMixin - returns number of mixins used in transactions
+     * \brief defaultRingSize - returns ring size used in transactions
      * \return
      */
-    virtual uint32_t defaultMixin() const = 0;
+    virtual uint32_t defaultRingSize() const = 0;
     /*!
-     * \brief setDefaultMixin - setum number of mixins to be used for new transactions
+     * \brief setDefaultRingSize - setum ring size to be used for new transactions
      * \param arg
      */
-    virtual void setDefaultMixin(uint32_t arg) = 0;
+    virtual void setDefaultRingSize(uint32_t arg) = 0;
 
     /*!
      * \brief setUserNote - attach an arbitrary string note to a txid

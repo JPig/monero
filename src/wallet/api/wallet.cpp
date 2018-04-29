@@ -1457,15 +1457,13 @@ void WalletImpl::setListener(WalletListener *l)
     m_wallet2Callback->setListener(l);
 }
 
-uint32_t WalletImpl::defaultMixin() const
+uint32_t WalletImpl::defaultRingSize() const
 {
-    //return m_wallet->default_mixin();
     return m_wallet->default_ring_size();
 }
 
-void WalletImpl::setDefaultMixin(uint32_t arg)
+void WalletImpl::setDefaultRingSize(uint32_t arg)
 {
-    //m_wallet->default_mixin(arg);
     m_wallet->default_ring_size(arg);
 }
 
