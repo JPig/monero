@@ -2572,26 +2572,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
       else
       {
         MDEBUG("Tx " << get_transaction_hash(tx) << " is non-private");
-        if (nofake_txs)
-        {
-          MDEBUG("So far in this block we've seen " << (*nofake_txs) << " non-private txs out of " << (*total_txs) << " txs.");
-          if ((*nofake_txs) * NOFAKE_TXS_TO_TOTAL_TXS_RATIO <= (*total_txs))
-          {
-            MDEBUG("This tx can be added because non-private txs are scarce enough");
-            is_nofake_tx = true;
-          }
-          else
-          {
-            MERROR_VER("This tx cannot be added because there's no more room for non-private txs");
-            tvc.m_low_mixin = true;
-            return false;
-          }
-        }
-        else
-        {
-          // we came here from tx_memory_pool::is_transaction_ready_to_go(). since tx_memory_pool::fill_block_template() has already checked that
-          // this non-private txs is scarce enough in the block, we can consider it as valid
-        }
+        is_nofake_tx = true;
       }
     }
 
@@ -2619,6 +2600,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
 
   tools::threadpool& tpool = tools::threadpool::getInstance();
   tools::threadpool::waiter waiter;
+  const auto waiter_guard = epee::misc_utils::create_scope_leave_handler([&]() { waiter.wait(); });
   int threads = tpool.get_max_concurrency();
 
   for (const auto& txin : tx.vin)
@@ -2939,6 +2921,11 @@ uint64_t Blockchain::get_dynamic_per_kb_fee(uint64_t block_reward, size_t median
 bool Blockchain::check_fee(size_t blob_size, uint64_t fee) const
 {
   const uint8_t version = get_current_hard_fork_version();
+
+  if (version == 1)
+  {
+    return fee >= DEFAULT_FEE_V1;
+  }
 
   uint64_t fee_per_kb = FEE_PER_KB;
 #if 0
@@ -3462,12 +3449,25 @@ leave:
   TIME_MEASURE_START(vmt);
   uint64_t base_reward = 0;
   uint64_t already_generated_coins = m_db->height() ? m_db->get_block_already_generated_coins(m_db->height() - 1) : 0;
-  if(!validate_miner_transaction(bl, cumulative_block_size, fee_summary, base_reward, already_generated_coins, bvc.m_partial_block_reward, m_hardfork->get_current_version(), get_current_blockchain_height()))
+  const uint8_t hf_version = m_hardfork->get_current_version();
+  if(!validate_miner_transaction(bl, cumulative_block_size, fee_summary, base_reward, already_generated_coins, bvc.m_partial_block_reward, hf_version, get_current_blockchain_height()))
   {
     MERROR_VER("Block with id: " << id << " has incorrect miner transaction");
     bvc.m_verifivation_failed = true;
     return_tx_to_pool(txs);
     goto leave;
+  }
+
+  // from v7, limit the ratio of non-private txes
+  if (hf_version >= 7)
+  {
+    if (nofake_txs > rational_ceil(total_txs * NOFAKE_TXS_TO_TOTAL_TXS_PERCENT, 100))
+    {
+      MERROR_VER("Block with id: " << id << " has too many non-private transactions (" << nofake_txs << "/" << total_txs << ") exceeding the limit: " << rational_ceil(total_txs * NOFAKE_TXS_TO_TOTAL_TXS_PERCENT, 100));
+      bvc.m_verifivation_failed = true;
+      return_tx_to_pool(txs);
+      goto leave;
+    }
   }
 
   TIME_MEASURE_FINISH(vmt);

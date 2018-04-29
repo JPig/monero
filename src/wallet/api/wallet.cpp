@@ -1101,7 +1101,7 @@ void WalletImpl::setSubaddressLabel(uint32_t accountIndex, uint32_t addressIndex
 //    - confirmed_transfer_details)
 
 PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const string &payment_id, optional<uint64_t> amount, uint32_t ring_size,
-                                                  PendingTransaction::Priority priority, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices)
+                                                  PendingTransaction::Priority priority_enum, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices)
 
 {
     clearStatus();
@@ -1114,11 +1114,11 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
     // TODO:  (https://bitcointalk.org/index.php?topic=753252.msg9985441#msg9985441)
     if (ring_size == 0)
         ring_size = m_wallet->default_ring_size();
-    if (ring_size == 0)
-        ring_size = DEFAULT_RING_SIZE;
-    size_t fake_outs_count = ring_size - 1;
+    ring_size = m_wallet->adjust_ring_size(ring_size);
 
-    uint32_t adjusted_priority = m_wallet->adjust_priority(static_cast<uint32_t>(priority));
+    uint32_t priority = static_cast<uint32_t>(priority_enum);
+    if (ring_size != 1)
+      priority = m_wallet->adjust_priority(priority);
 
     PendingTransactionImpl * transaction = new PendingTransactionImpl(*this);
 
@@ -1186,26 +1186,8 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
                 de.amount = *amount;
                 de.is_subaddress = info.is_subaddress;
                 dsts.push_back(de);
-
-                // check if empty early
-                if(dsts.empty()) {
-                  m_status = Status_Error;
-                  m_errorString = tr("dsts is empty");
-                  break;
-                }
-
-                // check if any amounts 0
-                for(auto& dt: dsts)
-                {
-                  if(0 == dt.amount) {
-                    m_status = Status_Error;
-                    m_errorString = tr("amount of destination is 0");
-                    break;
-                  }
-                }
-
-                transaction->m_pending_tx = m_wallet->create_transactions_2(dsts, fake_outs_count, 0 /* unlock_time */,
-                                                                          adjusted_priority,
+                transaction->m_pending_tx = m_wallet->create_transactions_2(dsts, ring_size, 0 /* unlock_time */,
+                                                                          priority,
                                                                           extra, subaddr_account, subaddr_indices, m_trustedDaemon);
             } else {
                 // for the GUI, sweep_all (i.e. amount set as "(all)") will always sweep all the funds in all the addresses
@@ -1214,8 +1196,8 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
                     for (uint32_t index = 0; index < m_wallet->get_num_subaddresses(subaddr_account); ++index)
                         subaddr_indices.insert(index);
                 }
-                transaction->m_pending_tx = m_wallet->create_transactions_all(0, info.address, info.is_subaddress, fake_outs_count, 0 /* unlock_time */,
-                                                                          adjusted_priority,
+                transaction->m_pending_tx = m_wallet->create_transactions_all(0, info.address, info.is_subaddress, ring_size, 0 /* unlock_time */,
+                                                                          priority,
                                                                           extra, subaddr_account, subaddr_indices, m_trustedDaemon);
             }
 

@@ -49,16 +49,9 @@
 #include "storages/levin_abstract_invoke2.h"
 #include "cryptonote_core/cryptonote_core.h"
 
-// We have to look for miniupnpc headers in different places, dependent on if its compiled or external
-#ifdef UPNP_STATIC
-  #include <miniupnpc/miniupnpc.h>
-  #include <miniupnpc/upnpcommands.h>
-  #include <miniupnpc/upnperrors.h>
-#else
-  #include "miniupnpc.h"
-  #include "upnpcommands.h"
-  #include "upnperrors.h"
-#endif
+#include <miniupnp/miniupnpc/miniupnpc.h>
+#include <miniupnp/miniupnpc/upnpcommands.h>
+#include <miniupnp/miniupnpc/upnperrors.h>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "net.p2p"
@@ -485,7 +478,7 @@ namespace nodetool
         if (result.size())
         {
           for (const auto& addr_string : result)
-            full_addrs.insert(addr_string + ":18080");
+            full_addrs.insert(addr_string + ":" + std::to_string(m_nettype == cryptonote::TESTNET ? ::config::testnet::P2P_DEFAULT_PORT : m_nettype == cryptonote::STAGENET ? ::config::stagenet::P2P_DEFAULT_PORT : ::config::P2P_DEFAULT_PORT));
         }
         ++i;
       }

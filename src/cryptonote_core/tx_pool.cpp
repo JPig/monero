@@ -654,9 +654,28 @@ namespace cryptonote
     CRITICAL_REGION_LOCAL1(m_blockchain);
     const uint64_t now = time(NULL);
     m_blockchain.for_all_txpool_txes([&backlog, now](const crypto::hash &txid, const txpool_tx_meta_t &meta, const cryptonote::blobdata *bd){
+      // skip if this tx is non-private (ring size == 1)
+      transaction tx;
+      if (!parse_and_validate_tx_from_blob(*bd, tx))
+      {
+        MERROR("Failed to parse tx from txpool");
+        return true;
+      }
+      uint64_t ring_size = std::numeric_limits<uint64_t>::max();
+      for (const auto& txin : tx.vin)
+      {
+        if (txin.type() == typeid(txin_to_key))
+        {
+          const txin_to_key& in_to_key = boost::get<txin_to_key>(txin);
+          ring_size = std::min<uint64_t>(ring_size, in_to_key.key_offsets.size());
+        }
+      }
+      if (ring_size == 1)
+        return true;
+
       backlog.push_back({meta.blob_size, meta.fee, meta.receive_time - now});
       return true;
-    }, false, include_unrelayed_txes);
+    }, true, include_unrelayed_txes);
   }
   //------------------------------------------------------------------
   void tx_memory_pool::get_transaction_stats(struct txpool_stats& stats, bool include_unrelayed_txes) const
@@ -1079,8 +1098,12 @@ namespace cryptonote
     total_size = 0;
     fee = 0;
     size_t n = 0;
-    size_t nofake_txs = 0;
-    
+    size_t nofake_txs_in_pool = 0;
+    size_t nofake_txs_taken = 0;
+    bool second_pass = false;
+    std::vector<uint64_t> tx_sizes;
+    std::vector<uint64_t> tx_fees;
+
     //baseline empty block
     get_block_reward(median_size, total_size, already_generated_coins, best_coinbase, version, height);
 
@@ -1095,8 +1118,17 @@ namespace cryptonote
     LockedTXN lock(m_blockchain);
 
     auto sorted_it = m_txs_by_fee_and_receive_time.begin();
-    while (sorted_it != m_txs_by_fee_and_receive_time.end())
+    while (true)
     {
+      if (sorted_it == m_txs_by_fee_and_receive_time.end())
+      {
+        if (nofake_txs_in_pool == 0 || second_pass)
+          break;
+        second_pass = true;
+        sorted_it = m_txs_by_fee_and_receive_time.begin();
+        LOG_PRINT_L2("There are " << nofake_txs_in_pool << " non-private txes in the pool, so we run the second pass over them");
+      }
+
       txpool_tx_meta_t meta;
       if (!m_blockchain.get_txpool_tx_meta(sorted_it->second, meta))
       {
@@ -1116,21 +1148,24 @@ namespace cryptonote
       // start using the optimal filling algorithm from v5
       if (version >= 5)
       {
-        // If we're getting lower coinbase tx,
-        // stop including more tx
-        uint64_t block_reward;
-        if(!get_block_reward(median_size, total_size + meta.blob_size, already_generated_coins, block_reward, version, height))
+        if (!second_pass)
         {
-          LOG_PRINT_L2("  would exceed maximum block size");
-          sorted_it++;
-          continue;
-        }
-        coinbase = block_reward + fee + meta.fee;
-        if (coinbase < template_accept_threshold(best_coinbase))
-        {
-          LOG_PRINT_L2("  would decrease coinbase to " << print_money(coinbase));
-          sorted_it++;
-          continue;
+          // If we're getting lower coinbase tx,
+          // stop including more tx
+          uint64_t block_reward;
+          if(!get_block_reward(median_size, total_size + meta.blob_size, already_generated_coins, block_reward, version, height))
+          {
+            LOG_PRINT_L2("  would exceed maximum block size");
+            sorted_it++;
+            continue;
+          }
+          coinbase = block_reward + fee + meta.fee;
+          if (coinbase < template_accept_threshold(best_coinbase))
+          {
+            LOG_PRINT_L2("  would decrease coinbase to " << print_money(coinbase));
+            sorted_it++;
+            continue;
+          }
         }
       }
       else
@@ -1188,35 +1223,75 @@ namespace cryptonote
             }
           }
 
+          if (mixin == 1)
+          {
+            LOG_PRINT_L2("This tx has ring size 2, which is disallowed");
+            sorted_it++;
+            continue;
+          }
+
           if (mixin < min_mixin)
           {
-            if (n_unmixable == 0)
+            LOG_PRINT_L2("This tx has ring size 1");
+            const bool no_unmixable_inputs = n_unmixable == 0;
+            const bool some_unmixable_inputs_and_multiple_mixable_inputs = n_unmixable > 0 && n_mixable > 1;
+            if (no_unmixable_inputs || some_unmixable_inputs_and_multiple_mixable_inputs)
             {
-              if (mixin == 1)
+              is_nofake_tx = true;
+              LOG_PRINT_L2("Tx is non-private because it has " <<
+                (no_unmixable_inputs ? "no unmixable inputs" : "some unmixable inputs and more than one mixable inputs"));
+
+              if (!second_pass)
               {
-                LOG_PRINT_L2("Tx " << get_transaction_hash(tx) << " has prohibited ring size 2, and no unmixable inputs");
+                LOG_PRINT_L2("Will check this tx again in the second pass");
+                ++nofake_txs_in_pool;
                 sorted_it++;
                 continue;
               }
-              LOG_PRINT_L2("Tx " << get_transaction_hash(tx) << " is non-private, and has no unmixable inputs. "
-                "So far in this block we've seen " << nofake_txs << " non-private txs out of " << n << " txs.");
-              if (nofake_txs * NOFAKE_TXS_TO_TOTAL_TXS_RATIO <= n)
+
+              LOG_PRINT_L2("We have currently " << nofake_txs_taken << " non-private transactions out of " << n << " transactions in the block");
+
+              bool can_nofake_tx_be_simply_added = false;
+              if (nofake_txs_taken + 1 <= rational_ceil((n + 1) * NOFAKE_TXS_TO_TOTAL_TXS_PERCENT, 100))
               {
-                LOG_PRINT_L2("This tx can be added because non-private txs are scarce enough");
-                is_nofake_tx = true;
+                LOG_PRINT_L2("Checking if this tx can be simply added");
+                uint64_t block_reward;
+                if(get_block_reward(median_size, total_size + meta.blob_size, already_generated_coins, block_reward, version, height))
+                {
+                  coinbase = block_reward + fee + meta.fee;
+                  if (coinbase >= template_accept_threshold(best_coinbase))
+                  {
+                    LOG_PRINT_L2("  adding this tx would increase coinbase to " << print_money(coinbase));
+                    can_nofake_tx_be_simply_added = true;
+                  }
+                }
               }
-              else
+
+              bool can_nofake_tx_replace_existing_tx = false;
+              if (!can_nofake_tx_be_simply_added && n > nofake_txs_taken && nofake_txs_taken + 1 <= rational_ceil(n * NOFAKE_TXS_TO_TOTAL_TXS_PERCENT, 100))
               {
-                LOG_PRINT_L2("This tx cannot be added because there's no more room for non-private txs");
+                LOG_PRINT_L2("Checking if this tx can replace an already added tx");
+                uint64_t block_reward;
+                if(get_block_reward(median_size, total_size + meta.blob_size - tx_sizes.back(), already_generated_coins, block_reward, version, height))
+                {
+                  coinbase = block_reward + fee + meta.fee - tx_fees.back();
+                  if (coinbase >= template_accept_threshold(best_coinbase))
+                  {
+                    LOG_PRINT_L2("  replacing existing tx " << bl.tx_hashes.back() << " with this tx would increase coinbase to " << print_money(coinbase));
+                    can_nofake_tx_replace_existing_tx = true;
+                    bl.tx_hashes.pop_back();
+                    tx_sizes.pop_back();
+                    tx_fees.pop_back();
+                  }
+                }
+              }
+
+              if (!can_nofake_tx_be_simply_added && !can_nofake_tx_replace_existing_tx)
+              {
+                LOG_PRINT_L2("Adding this tx would decrease coinbase");
                 sorted_it++;
                 continue;
               }
-            }
-            if (n_mixable > 1)
-            {
-              LOG_PRINT_L2("Tx " << get_transaction_hash(tx) << " has too low ring size (" << (mixin + 1) << "), and more than one mixable input with unmixable inputs");
-              sorted_it++;
-              continue;
             }
           }
         }
@@ -1261,23 +1336,39 @@ namespace cryptonote
         sorted_it++;
         continue;
       }
+      if (second_pass && !is_nofake_tx)
+      {
+        LOG_PRINT_L2("Skipping this tx in the second pass since it's not non-private");
+        sorted_it++;
+        continue;
+      }
 
-      bl.tx_hashes.push_back(sorted_it->second);
+      if (is_nofake_tx)
+      {
+        // non-private txes are added to the front, in order to make sure that the back of the array is always the least profitable tx
+        bl.tx_hashes.insert(bl.tx_hashes.begin(), sorted_it->second);
+        tx_sizes.insert(tx_sizes.begin(), meta.blob_size);    // not really needed, just to make these two arrays in correspondence with bl.tx_hashes
+        tx_fees.insert(tx_fees.begin(), meta.fee);
+
+        nofake_txs_taken++;
+      }
+      else
+      {
+        bl.tx_hashes.push_back(sorted_it->second);
+        tx_sizes.push_back(meta.blob_size);
+        tx_fees.push_back(meta.fee);
+      }
       total_size += meta.blob_size;
       fee += meta.fee;
       best_coinbase = coinbase;
       append_key_images(k_images, tx);
       sorted_it++;
       n++;
-      if (is_nofake_tx)
-      {
-        nofake_txs++;
-      }
       LOG_PRINT_L2("  added, new block size " << total_size << "/" << max_total_size << ", coinbase " << print_money(best_coinbase));
     }
 
     expected_reward = best_coinbase;
-    LOG_PRINT_L2("Block template filled with " << bl.tx_hashes.size() << " txes, size "
+    LOG_PRINT_L2("Block template filled with " << bl.tx_hashes.size() << " txes, " << nofake_txs_taken << " non-private txes, size "
         << total_size << "/" << max_total_size << ", coinbase " << print_money(best_coinbase)
         << " (including " << print_money(fee) << " in fees)");
     return true;
@@ -1354,24 +1445,33 @@ namespace cryptonote
     m_spent_key_images.clear();
     m_txpool_size = 0;
     std::vector<crypto::hash> remove;
-    bool r = m_blockchain.for_all_txpool_txes([this, &remove](const crypto::hash &txid, const txpool_tx_meta_t &meta, const cryptonote::blobdata *bd) {
-      cryptonote::transaction tx;
-      if (!parse_and_validate_tx_from_blob(*bd, tx))
-      {
-        MWARNING("Failed to parse tx from txpool, removing");
-        remove.push_back(txid);
-      }
-      if (!insert_key_images(tx, meta.kept_by_block))
-      {
-        MFATAL("Failed to insert key images from txpool tx");
+
+    // first add the not kept by block, then the kept by block,
+    // to avoid rejection due to key image collision
+    for (int pass = 0; pass < 2; ++pass)
+    {
+      const bool kept = pass == 1;
+      bool r = m_blockchain.for_all_txpool_txes([this, &remove, kept](const crypto::hash &txid, const txpool_tx_meta_t &meta, const cryptonote::blobdata *bd) {
+        if (!!kept != !!meta.kept_by_block)
+          return true;
+        cryptonote::transaction tx;
+        if (!parse_and_validate_tx_from_blob(*bd, tx))
+        {
+          MWARNING("Failed to parse tx from txpool, removing");
+          remove.push_back(txid);
+        }
+        if (!insert_key_images(tx, meta.kept_by_block))
+        {
+          MFATAL("Failed to insert key images from txpool tx");
+          return false;
+        }
+        m_txs_by_fee_and_receive_time.emplace(std::pair<double, time_t>(meta.fee / (double)meta.blob_size, meta.receive_time), txid);
+        m_txpool_size += meta.blob_size;
+        return true;
+      }, true);
+      if (!r)
         return false;
-      }
-      m_txs_by_fee_and_receive_time.emplace(std::pair<double, time_t>(meta.fee / (double)meta.blob_size, meta.receive_time), txid);
-      m_txpool_size += meta.blob_size;
-      return true;
-    }, true);
-    if (!r)
-      return false;
+    }
     if (!remove.empty())
     {
       LockedTXN lock(m_blockchain);
